@@ -1,6 +1,6 @@
-from flask import (Flask, g, render_template, flash, redirect, url_for)
-from flask＿bcrypt import Bcrypt
-from flask_login import LoginManager, login_user, logout_user, login_required
+from flask import (Flask, g, render_template, flash, redirect, url_for, abort)
+from flask_bcrypt import Bcrypt
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 
 import forms
 import models
@@ -24,7 +24,7 @@ def before_request():
     ''' Connect the database before each request.'''
     g.db = models.DATABASE
     g.db.connect()
-
+    g.user = current_user
 
 @app.after_request
 def after_request(response):
@@ -80,9 +80,90 @@ def logout():
     flash('You have been log out !', 'success')
     return redirect(url_for('index'))
 
+
+@app.route('/new_post', method=('POST', 'GET'))
+@login_required
+def post():
+    form = forms.PostForm()
+    if form.validate_on_submit():
+        models.Post.create(user=g.user._get_current_object(),
+                            content=form.content.data.strip())
+        flash('Message been post!', 'success')
+        return redirect(url_for('index'))
+    return render_template('post.html', form=form)
+
 @app.route('/')
 def index():
-    return 'this is the home page'
+    stream = models.Post.select().limit(100)
+    return render_template('stream.html', stream=stream)
+
+
+@app.route('/stream')
+@app.route('/stream/<username>')
+def stream(username=None):
+    template = 'strem.html'
+    if username and username != current_user.username:
+        user = models.User.select().where(models.User.username**username).get()
+        stream = user.posts.limit(100)
+    else:
+        stream = current_user.get_stream().limit(100)
+        user = current_user
+    if username:
+        template = 'user_stream.html'
+    return render_template(template, stream=stream, user=user)
+
+
+@app.route('/post/<int:post_id>')
+def view_post(post_id):
+    posts = models.Post.select().where(models.Post.id == post_id)
+    if posts.count() == 0:
+        abort(404)
+    return render_template('stream.html', stream=posts)
+
+
+@app.route('/follow/<username>')
+@login_required
+def follow(username):
+    try:
+        to_user = models.User.get(models.User.username**username)
+    except models.DoesNotExist:
+        abort(404)
+    else:
+        try:
+            models.Relationship.create(
+                from_user=g.user._get_current_object(),
+                to_user=to_user
+            )
+        except models.IntegrityError:
+            pass
+        else:
+            flash("You're now following {}!".format(to_user.username), "success")
+    return redirect(url_for('stream', username=to_user.username))
+
+
+@app.route('/unfollow/<username>')
+@login_required
+def unfollow(username):
+    try:
+        to_user = models.User.get(models.User.username**username)
+    except models.DoesNotExist:
+        abort(404)
+    else:
+        try:
+            models.Relationship.get(
+                from_user=g.user._get_current_object(),
+                to_user=to_user
+            ).delete_instance()
+        except models.IntegrityError:
+            pass
+        else:
+            flash("You've unfollowed {}!".format(to_user.username), "success")
+    return redirect(url_for('stream', username=to_user.username))
+
+
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('404.html'), 404
 
 
 

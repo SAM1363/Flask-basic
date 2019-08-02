@@ -1,0 +1,26 @@
+.head {
+  color: aqua;
+  background: pink; }
+
+p {
+  color: #0e4633; }
+
+.form-data {
+  background: hotpink; }
+  .form-data input {
+    background: khaki; }
+
+.para {
+  background: darkcyan; }
+
+.message {
+  background: #262b6e; }
+  .message .flashes {
+    background: #657575; }
+
+.wrap input {
+  background: greenyellow; }
+.wrap .btn {
+  background: red; }
+
+/*# sourceMappingURL=flask.css.map */
